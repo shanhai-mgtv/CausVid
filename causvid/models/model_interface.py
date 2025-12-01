@@ -4,7 +4,6 @@ from typing import List, Optional
 import torch
 import types
 
-
 class DiffusionModelInterface(ABC, torch.nn.Module):
     scheduler: SchedulerInterface
 
