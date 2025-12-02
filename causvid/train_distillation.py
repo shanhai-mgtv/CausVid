@@ -1,5 +1,4 @@
 import sys 
-sys.path.append("/mnt/cfs/shanhai/jyutong/hyc/causvid")
 from causvid.data import ODERegressionLMDBDataset
 from causvid.models import get_block_class
 from causvid.data import TextDataset
