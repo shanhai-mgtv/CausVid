@@ -136,7 +136,8 @@ class DMD(nn.Module):
             raise NotImplementedError("Unsupported model type {}".format(type))
 
     def _compute_kl_grad(
-        self, noisy_image_or_video: torch.Tensor,
+        self, noisy_image_or_video_ca: torch.Tensor,
+        noisy_image_or_video_dm: torch.Tensor,
         estimated_clean_image_or_video: torch.Tensor,
         timestep: torch.Tensor,
         conditional_dict: dict, unconditional_dict: dict,
@@ -155,55 +156,68 @@ class DMD(nn.Module):
             - kl_grad: a tensor representing the KL grad.
             - kl_log_dict: a dictionary containing the intermediate tensors for logging.
         """
-        # Step 1: Compute the fake score
-        pred_fake_image = self.fake_score(
-            noisy_image_or_video=noisy_image_or_video,
+        # Step 1: Compute the fake score from dm noise
+        pred_fake_image_dm = self.fake_score(
+            noisy_image_or_video=noisy_image_or_video_dm,
             conditional_dict=conditional_dict,
             timestep=timestep
         )
 
-        # Step 2: Compute the real score
+        # Step 2: Compute the real score from dm noise
         # We compute the conditional and unconditional prediction
         # and add them together to achieve cfg (https://arxiv.org/abs/2207.12598)
-        pred_real_image_cond = self.real_score(
-            noisy_image_or_video=noisy_image_or_video,
+        pred_real_image_cond_dm = self.real_score(
+            noisy_image_or_video=noisy_image_or_video_dm,
             conditional_dict=conditional_dict,
             timestep=timestep
         )
 
-        pred_real_image_uncond = self.real_score(
-            noisy_image_or_video=noisy_image_or_video,
+        #Step 3: Compute the real score from ca noise
+        pred_real_image_cond_ca = self.real_score(
+            noisy_image_or_video=noisy_image_or_video_ca,
+            conditional_dict=conditional_dict,
+            timestep=timestep
+        )
+
+        pred_real_image_uncond_ca = self.real_score(
+            noisy_image_or_video=noisy_image_or_video_ca,
             conditional_dict=unconditional_dict,
             timestep=timestep
         )
 
-        pred_real_image = pred_real_image_cond + (
-            pred_real_image_cond - pred_real_image_uncond
-        ) * self.real_guidance_scale
+        #pred_real_image = pred_real_image_cond + (
+        #     pred_real_image_cond - pred_real_image_uncond
+        # ) * self.real_guidance_scale
+        
+        # Step 4 compute the Distribution Matching and CFG Augmentation
+        grad_ca = (self.real_guidance_scale - 1) * (pred_real_image_cond_ca - pred_real_image_uncond_ca)
+        grad_dm = pred_real_image_cond_dm - pred_fake_image_dm
+        
+        grad = grad_ca + grad_dm
 
-        # Step 3: Compute the DMD gradient (DMD paper eq. 7).
-        grad = (pred_fake_image - pred_real_image)
-
-        # TODO: Change the normalizer for causal teacher
+        # TOCHECK should we do normalization in de-dmd method
         if normalization:
             # Step 4: Gradient normalization (DMD paper eq. 8).
-            p_real = (estimated_clean_image_or_video - pred_real_image)
+            p_real = (estimated_clean_image_or_video - grad_ca)
             normalizer = torch.abs(p_real).mean(dim=[1, 2, 3, 4], keepdim=True)
             grad = grad / normalizer
         grad = torch.nan_to_num(grad)
 
+        # grad为DMD梯度
         return grad, {
-            "dmdtrain_clean_latent": estimated_clean_image_or_video.detach(),
-            "dmdtrain_noisy_latent": noisy_image_or_video.detach(),
-            "dmdtrain_pred_real_image": pred_real_image.detach(),
-            "dmdtrain_pred_fake_image": pred_fake_image.detach(),
+            "dmdtrain_clean_latent_novis": estimated_clean_image_or_video.detach(),
+            "dmdtrain_noisy_latent_dm": noisy_image_or_video_dm.detach(),
+            "dmdtrain_noisy_latent_ca": noisy_image_or_video_ca.detach(),
+            "grad_ca": grad_ca.detach(),
+            "grad_dm": grad_dm.detach(),
             "dmdtrain_gradient_norm": torch.mean(torch.abs(grad)).detach(),
             "timestep": timestep.detach()
         }
 
     def compute_distribution_matching_loss(
         self, image_or_video: torch.Tensor, conditional_dict: dict,
-        unconditional_dict: dict, gradient_mask: torch.Tensor = None
+        unconditional_dict: dict, target_index: int, 
+        gradient_mask: torch.Tensor = None,
     ) -> Tuple[torch.Tensor, dict]:
         """
         Compute the DMD loss (eq 7 in https://arxiv.org/abs/2311.18828).
@@ -229,27 +243,46 @@ class DMD(nn.Module):
                 device=self.device,
                 dtype=torch.long
             )
-
+            timestep_ca = torch.randint(
+                self.denoising_step_list[target_index] - 1,
+                self.num_train_timestep,
+                [batch_size, num_frame],
+                device=self.device,
+                dtype=torch.long
+            )
             timestep = self._process_timestep(
                 timestep, type=self.real_task_type)
-
+            timestep_ca = self._process_timestep(
+                timestep_ca, type=self.real_task_type)
             # TODO: Add timestep warping
             if self.timestep_shift > 1:
                 timestep = self.timestep_shift * \
                     (timestep / 1000) / \
                     (1 + (self.timestep_shift - 1) * (timestep / 1000)) * 1000
+                timestep_ca = self.timestep_shift * \
+                    (timestep_ca / 1000) / \
+                    (1 + (self.timestep_shift - 1) * (timestep_ca / 1000)) * 1000
             timestep = timestep.clamp(self.min_step, self.max_step)
-
+            timestep_ca = timestep_ca.clamp(self.min_step, self.max_step)
+            # noise for ca
             noise = torch.randn_like(image_or_video)
-            noisy_latent = self.scheduler.add_noise(
+            noisy_latent_ca = self.scheduler.add_noise(
+                image_or_video.flatten(0, 1),
+                noise.flatten(0, 1),
+                timestep_ca.flatten(0, 1)
+            ).detach().unflatten(0, (batch_size, num_frame))
+            # noise for dm
+            noisy_latent_dm = self.scheduler.add_noise(
                 image_or_video.flatten(0, 1),
                 noise.flatten(0, 1),
                 timestep.flatten(0, 1)
             ).detach().unflatten(0, (batch_size, num_frame))
+            
 
             # Step 2: Compute the KL grad
             grad, dmd_log_dict = self._compute_kl_grad(
-                noisy_image_or_video=noisy_latent,
+                noisy_image_or_video_ca=noisy_latent_ca,
+                noisy_image_or_video_dm=noisy_latent_dm,
                 estimated_clean_image_or_video=original_latent,
                 timestep=timestep,
                 conditional_dict=conditional_dict,
@@ -366,7 +399,7 @@ class DMD(nn.Module):
 
         pred_image_or_video = pred_image_or_video.type_as(noisy_input)
 
-        return pred_image_or_video, gradient_mask
+        return pred_image_or_video, gradient_mask, index.flatten()[0].item()
 
     def generator_loss(self, image_or_video_shape, conditional_dict: dict, unconditional_dict: dict, clean_latent: torch.Tensor) -> Tuple[torch.Tensor, dict]:
         """
@@ -384,7 +417,7 @@ class DMD(nn.Module):
             - generator_log_dict: a dictionary containing the intermediate tensors for logging.
         """
         # Step 1: Run generator on backward simulated noisy input
-        pred_image, gradient_mask = self._run_generator(
+        pred_image, gradient_mask, target_index = self._run_generator(
             image_or_video_shape=image_or_video_shape,
             conditional_dict=conditional_dict,
             unconditional_dict=unconditional_dict,
@@ -396,7 +429,8 @@ class DMD(nn.Module):
             image_or_video=pred_image,
             conditional_dict=conditional_dict,
             unconditional_dict=unconditional_dict,
-            gradient_mask=gradient_mask
+            target_index=target_index,
+            gradient_mask=gradient_mask,
         )
 
         # Step 3: TODO: Implement the GAN loss
@@ -421,7 +455,7 @@ class DMD(nn.Module):
 
         # Step 1: Run generator on backward simulated noisy input
         with torch.no_grad():
-            generated_image, _ = self._run_generator(
+            generated_image, _, _ = self._run_generator(
                 image_or_video_shape=image_or_video_shape,
                 conditional_dict=conditional_dict,
                 unconditional_dict=unconditional_dict,
@@ -492,9 +526,9 @@ class DMD(nn.Module):
 
         # Step 5: Debugging Log
         critic_log_dict = {
-            "critictrain_latent": generated_image.detach(),
-            "critictrain_noisy_latent": noisy_generated_image.detach(),
-            "critictrain_pred_image": pred_fake_image.detach(),
+            "critictrain_latent": generated_image.detach(),                     # 学生模型的输出（干净图像）
+            "critictrain_noisy_latent": noisy_generated_image.detach(),         # 学生模型的输出加噪（加噪图像）
+            "critictrain_pred_image": pred_fake_image.detach(),                 # fake image
             "critic_timestep": critic_timestep.detach()
         }
 
