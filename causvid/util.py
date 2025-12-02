@@ -64,9 +64,8 @@ def init_logging_folder(args):
     os.makedirs(output_path, exist_ok=False)
 
     os.makedirs(args.output_path, exist_ok=True)
-    wandb.login(host=args.wandb_host, key=args.wandb_key)
-    run = wandb.init(config=OmegaConf.to_container(args, resolve=True), dir=args.output_path, **
-                     {"mode": "online", "entity": args.wandb_entity, "project": args.wandb_project})
+    wandb.login(host=os.getenv("WANDB_HOST", "https://api.wandb.ai"), key=os.getenv("WANDB_KEY"))
+    run = wandb.init(config=OmegaConf.to_container(args, resolve=True), dir=args.output_path, project=args.wandb_project)
     wandb.run.log_code(".")
     wandb.run.name = args.wandb_name
     print(f"run dir: {run.dir}")
@@ -115,6 +114,7 @@ def fsdp_wrap(module, sharding_strategy="full", mixed_precision=False, wrap_stra
         sharding_strategy=sharding_strategy,
         mixed_precision=mixed_precision_policy,
         device_id=torch.cuda.current_device(),
+        use_orig_params=True,
         limit_all_gathers=True,
         sync_module_states=False  # Load ckpt on rank 0 and sync to other ranks
     )

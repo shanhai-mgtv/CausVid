@@ -192,12 +192,13 @@ class DMD(nn.Module):
             grad = grad / normalizer
         grad = torch.nan_to_num(grad)
 
+        # grad为DMD梯度
         return grad, {
-            "dmdtrain_clean_latent": estimated_clean_image_or_video.detach(),
-            "dmdtrain_noisy_latent": noisy_image_or_video.detach(),
-            "dmdtrain_pred_real_image": pred_real_image.detach(),
-            "dmdtrain_pred_fake_image": pred_fake_image.detach(),
-            "dmdtrain_gradient_norm": torch.mean(torch.abs(grad)).detach(),
+            "dmdtrain_clean_latent": estimated_clean_image_or_video.detach(),   # 学生模型的输出（干净图像）
+            "dmdtrain_noisy_latent": noisy_image_or_video.detach(),             # 学生模型的输出加噪（加噪图像）
+            "dmdtrain_pred_real_image": pred_real_image.detach(),               # real image
+            "dmdtrain_pred_fake_image": pred_fake_image.detach(),               # fake image
+            "dmdtrain_gradient_norm": torch.mean(torch.abs(grad)).detach(),     # DMD梯度
             "timestep": timestep.detach()
         }
 
@@ -492,9 +493,9 @@ class DMD(nn.Module):
 
         # Step 5: Debugging Log
         critic_log_dict = {
-            "critictrain_latent": generated_image.detach(),
-            "critictrain_noisy_latent": noisy_generated_image.detach(),
-            "critictrain_pred_image": pred_fake_image.detach(),
+            "critictrain_latent": generated_image.detach(),                     # 学生模型的输出（干净图像）
+            "critictrain_noisy_latent": noisy_generated_image.detach(),         # 学生模型的输出加噪（加噪图像）
+            "critictrain_pred_image": pred_fake_image.detach(),                 # fake image
             "critic_timestep": critic_timestep.detach()
         }
 

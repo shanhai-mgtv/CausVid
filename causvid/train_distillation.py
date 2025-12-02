@@ -1,3 +1,4 @@
+import sys 
 from causvid.data import ODERegressionLMDBDataset
 from causvid.models import get_block_class
 from causvid.data import TextDataset
@@ -17,6 +18,10 @@ import torch
 import wandb
 import time
 import os
+from functools import partial
+import tqdm 
+
+tqdm = partial(tqdm.tqdm, dynamic_ncols=True)
 
 
 class Trainer:
@@ -46,10 +51,12 @@ class Trainer:
             self.output_path, self.wandb_folder = init_logging_folder(config)
 
         # Step 2: Initialize the model and optimizer
+        print("start initialize DMD model")
         if config.distillation_loss == "dmd":
             self.distillation_model = DMD(config, device=self.device)
         else:
             raise ValueError("Invalid distillation loss type")
+        print("finish initialize DMD model")
 
         self.distillation_model.generator = fsdp_wrap(
             self.distillation_model.generator,
@@ -59,6 +66,7 @@ class Trainer:
             transformer_module=(get_block_class(config.generator_fsdp_transformer_module),
                                 ) if config.generator_fsdp_wrap_strategy == "transformer" else None
         )
+        print("finish wrap generator model")
 
         self.distillation_model.real_score = fsdp_wrap(
             self.distillation_model.real_score,
@@ -68,6 +76,7 @@ class Trainer:
             transformer_module=(get_block_class(config.real_score_fsdp_transformer_module),
                                 ) if config.real_score_fsdp_wrap_strategy == "transformer" else None
         )
+        print("finish wrap real score model")
 
         self.distillation_model.fake_score = fsdp_wrap(
             self.distillation_model.fake_score,
@@ -77,6 +86,7 @@ class Trainer:
             transformer_module=(get_block_class(config.fake_score_fsdp_transformer_module),
                                 ) if config.fake_score_fsdp_wrap_strategy == "transformer" else None
         )
+        print("finish wrap fake score model")
 
         self.distillation_model.text_encoder = fsdp_wrap(
             self.distillation_model.text_encoder,
@@ -86,6 +96,7 @@ class Trainer:
             transformer_module=(get_block_class(config.text_encoder_fsdp_transformer_module),
                                 ) if config.text_encoder_fsdp_wrap_strategy == "transformer" else None
         )
+        print("finish warp text encoder")
 
         if not config.no_visualize:
             self.distillation_model.vae = self.distillation_model.vae.to(
@@ -94,15 +105,15 @@ class Trainer:
         self.generator_optimizer = torch.optim.AdamW(
             [param for param in self.distillation_model.generator.parameters()
              if param.requires_grad],
-            lr=config.lr,
-            betas=(config.beta1, config.beta2)
+            lr=config.generator_lr,
+            betas=(config.generator_beta1, config.generator_beta2)
         )
 
         self.critic_optimizer = torch.optim.AdamW(
             [param for param in self.distillation_model.fake_score.parameters()
              if param.requires_grad],
-            lr=config.lr,
-            betas=(config.beta1, config.beta2)
+            lr=config.fake_lr,
+            betas=(config.fake_beta1, config.fake_beta2)
         )
 
         # Step 3: Initialize the dataloader
@@ -179,7 +190,9 @@ class Trainer:
                 self.unconditional_dict = unconditional_dict  # cache the unconditional_dict
             else:
                 unconditional_dict = self.unconditional_dict
+        print("finish extract embeddings")
 
+        print("start training")
         # Step 3: Train the generator
         if TRAIN_GENERATOR:
             generator_loss, generator_log_dict = self.distillation_model.generator_loss(
@@ -264,7 +277,12 @@ class Trainer:
             )
 
     def train(self):
-        while True:
+        for i in tqdm(
+            range(self.config.total_steps),
+            desc=f"Step {self.step}: training",
+            disable=not self.is_main_process,
+            position=0,
+        ):
             self.train_one_step()
             if (not self.config.no_save) and self.step % self.config.log_iters == 0:
                 self.save()
