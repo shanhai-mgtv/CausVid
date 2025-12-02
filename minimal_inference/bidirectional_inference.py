@@ -1,5 +1,4 @@
 import sys
-sys.path.append("/mnt/cfs/shanhai/jyutong/hyc/causvid")
 from causvid.models.wan22.bidirectional_inference import BidirectionalInferencePipeline
 from huggingface_hub import hf_hub_download
 from diffusers.utils import export_to_video
