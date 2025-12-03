@@ -50,7 +50,7 @@ os.makedirs(args.output_folder, exist_ok=True)
 print("start inference")
 for index in tqdm(range(len(dataset))):
     prompt = dataset[index]
-    video = pipe.inference(
+    video = pipe.inference_with_scheduler(
         noise=torch.randn(
             1, 20, 48, 28, 52, generator=torch.Generator(device="cuda").manual_seed(1024),
             dtype=torch.bfloat16, device="cuda"

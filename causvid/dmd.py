@@ -295,8 +295,11 @@ class DMD(nn.Module):
         """
         if self.inference_pipeline is None:
             self._initialize_inference_pipeline()
-
-        return self.inference_pipeline.inference_with_trajectory(noise=noise, conditional_dict=conditional_dict)
+        
+        if self.args.simulation_ode:
+            return self.inference_pipeline.inference_with_trajectory_ode(noise=noise, conditional_dict=conditional_dict)
+        else:
+            return self.inference_pipeline.inference_with_trajectory(noise=noise, conditional_dict=conditional_dict)
 
     def _run_generator(self, image_or_video_shape, conditional_dict: dict, unconditional_dict: dict, clean_latent: torch.tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """

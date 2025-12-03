@@ -169,7 +169,8 @@ class Wan22DiffusionWrapper(DiffusionModelInterface):
         timestep: torch.Tensor, kv_cache: Optional[List[dict]] = None,
         crossattn_cache: Optional[List[dict]] = None,
         current_start: Optional[int] = None,
-        current_end: Optional[int] = None
+        current_end: Optional[int] = None,
+        return_flow=False,
     ) -> torch.Tensor:
         prompt_embeds = conditional_dict["prompt_embeds"]
 
@@ -201,8 +202,10 @@ class Wan22DiffusionWrapper(DiffusionModelInterface):
             xt=noisy_image_or_video.flatten(0, 1),
             timestep=timestep.flatten(0, 1)
         ).unflatten(0, flow_pred.shape[:2])
-
-        return pred_x0
+        if return_flow:
+            return flow_pred, pred_x0
+        else:
+            return pred_x0
 
 
 # class CausalWanDiffusionWrapper(WanDiffusionWrapper):
