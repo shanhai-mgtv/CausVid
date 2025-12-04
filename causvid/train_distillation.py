@@ -13,6 +13,7 @@ from causvid.util import (
 import torch.distributed as dist
 from omegaconf import OmegaConf
 from causvid.dmd import DMD
+from causvid.ddmd import DDMD
 import argparse
 import torch
 import wandb
@@ -54,6 +55,8 @@ class Trainer:
         print("start initialize DMD model")
         if config.distillation_loss == "dmd":
             self.distillation_model = DMD(config, device=self.device)
+        elif config.distillation_loss == "ddmd":
+            self.distillation_model = DDMD(config, device=self.device)
         else:
             raise ValueError("Invalid distillation loss type")
         print("finish initialize DMD model")
