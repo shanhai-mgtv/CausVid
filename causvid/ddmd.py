@@ -191,15 +191,16 @@ class DDMD(nn.Module):
         # ) * self.real_guidance_scale
         
         # Step 4 compute the Distribution Matching and CFG Augmentation
-        grad_ca = (self.real_guidance_scale - 1) * (pred_real_image_cond_ca - pred_real_image_uncond_ca)
+        grad_ca = self.real_guidance_scale * (pred_real_image_cond_ca - pred_real_image_uncond_ca)
         grad_dm = pred_real_image_cond_dm - pred_fake_image_dm
         
-        grad = grad_ca + grad_dm
+        nomralize_image = pred_real_image_cond_ca + self.real_guidance_scale * (pred_real_image_cond_ca - pred_real_image_uncond_ca)
+        grad = -(grad_ca + grad_dm)
 
         # TOCHECK should we do normalization in de-dmd method
         if normalization:
             # Step 4: Gradient normalization (DMD paper eq. 8).
-            p_real = (estimated_clean_image_or_video - grad_ca)
+            p_real = (estimated_clean_image_or_video - nomralize_image)
             normalizer = torch.abs(p_real).mean(dim=[1, 2, 3, 4], keepdim=True)
             grad = grad / normalizer
         grad = torch.nan_to_num(grad)
@@ -245,9 +246,16 @@ class DDMD(nn.Module):
                 device=self.device,
                 dtype=torch.long
             )
+            # timestep_ca = torch.randint(
+            #     0, 
+            #     self.denoising_step_list[target_index]-1,
+            #     [batch_size, num_frame],
+            #     device=self.device,
+            #     dtype=torch.long
+            # )
             timestep_ca = torch.randint(
                 0, 
-                self.denoising_step_list[target_index]-1,
+                self.num_train_timestep,
                 [batch_size, num_frame],
                 device=self.device,
                 dtype=torch.long

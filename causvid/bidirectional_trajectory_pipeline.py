@@ -37,7 +37,8 @@ class BidirectionalInferenceWrapper(InferencePipelineInterface):
                 noise.shape[:2], dtype=torch.long, device=noise.device)
             noisy_image_or_video = self.scheduler.add_noise(
                 pred_image_or_video.flatten(0, 1),
-                torch.randn_like(pred_image_or_video.flatten(0, 1)),
+                # torch.randn_like(pred_image_or_video.flatten(0, 1)),
+                noise.flatten(0, 1),
                 next_timestep.flatten(0, 1)
             ).unflatten(0, noise.shape[:2])
             output_list.append(noisy_image_or_video)

@@ -64,7 +64,7 @@ def init_logging_folder(args):
     os.makedirs(output_path, exist_ok=False)
 
     os.makedirs(args.output_path, exist_ok=True)
-    wandb.login(host=os.getenv("WANDB_HOST", "https://api.wandb.ai"), key=os.getenv("WANDB_KEY"))
+    wandb.login(host=os.getenv("WANDB_HOST", "https://api.wandb.ai"), key=os.getenv("WANDB_KEY", "4e7b1df2e48dac90e1026def617e5c609d800615"))
     run = wandb.init(config=OmegaConf.to_container(args, resolve=True), dir=args.output_path, project=args.wandb_project)
     wandb.run.log_code(".")
     wandb.run.name = args.wandb_name
