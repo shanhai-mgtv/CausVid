@@ -194,19 +194,21 @@ class DDMD(nn.Module):
         grad_ca = self.real_guidance_scale * (pred_real_image_cond_ca - pred_real_image_uncond_ca)
         grad_dm = pred_real_image_cond_dm - pred_fake_image_dm
         
-        nomralize_image = pred_real_image_cond_ca + self.real_guidance_scale * (pred_real_image_cond_ca - pred_real_image_uncond_ca)
-        grad = -(grad_ca + grad_dm)
-
+        grad = -(grad_ca+grad_dm)
         # TOCHECK should we do normalization in de-dmd method
         if normalization:
             # Step 4: Gradient normalization (DMD paper eq. 8).
-            p_real = (estimated_clean_image_or_video - nomralize_image)
-            normalizer = torch.abs(p_real).mean(dim=[1, 2, 3, 4], keepdim=True)
-            grad = grad / normalizer
+            ca_normalizer = (estimated_clean_image_or_video - pred_real_image_cond_ca)
+            ca_normalizer = torch.abs(ca_normalizer).mean(dim=[1, 2, 3, 4], keepdim=True)
+            grad_ca = grad_ca / ca_normalizer
+
+            dm_normalizer = (estimated_clean_image_or_video - pred_real_image_cond_dm)
+            dm_normalizer = torch.abs(dm_normalizer).mean(dim=[1, 2, 3, 4], keepdim=True)
+            grad_dm = grad_dm / dm_normalizer
         grad = torch.nan_to_num(grad)
 
         # grad为DMD梯度
-        return grad, {
+        return grad, grad_ca, grad_dm, {
             "dmdtrain_clean_latent_novis": estimated_clean_image_or_video.detach(),
             "dmdtrain_noisy_latent_dm": noisy_image_or_video_dm.detach(),
             "dmdtrain_noisy_latent_ca": noisy_image_or_video_ca.detach(),
@@ -246,20 +248,20 @@ class DDMD(nn.Module):
                 device=self.device,
                 dtype=torch.long
             )
-            # timestep_ca = torch.randint(
-            #     0, 
-            #     self.denoising_step_list[target_index]-1,
-            #     [batch_size, num_frame],
-            #     device=self.device,
-            #     dtype=torch.long
-            # )
             timestep_ca = torch.randint(
                 0, 
-                self.num_train_timestep,
+                self.denoising_step_list[target_index]-1,
                 [batch_size, num_frame],
                 device=self.device,
                 dtype=torch.long
             )
+            # timestep_ca = torch.randint(
+            #     0, 
+            #     self.num_train_timestep,
+            #     [batch_size, num_frame],
+            #     device=self.device,
+            #     dtype=torch.long
+            # )
 
             timestep_dm = self._process_timestep(
                 timestep_dm, type=self.real_task_type)
@@ -291,7 +293,7 @@ class DDMD(nn.Module):
             
 
             # Step 2: Compute the KL grad
-            grad, dmd_log_dict = self._compute_kl_grad(
+            grad, grad_ca, grad_dm, dmd_log_dict = self._compute_kl_grad(
                 noisy_image_or_video_ca=noisy_latent_ca,
                 noisy_image_or_video_dm=noisy_latent_dm,
                 estimated_clean_image_or_video=original_latent,
@@ -302,11 +304,17 @@ class DDMD(nn.Module):
             )
 
         if gradient_mask is not None:
-            dmd_loss = 0.5 * F.mse_loss(original_latent.double(
-            )[gradient_mask], (original_latent.double() - grad.double()).detach()[gradient_mask], reduction="mean")
+            ca_loss = 0.5 * F.mse_loss(original_latent.double(
+            )[gradient_mask], (original_latent.double() + grad_ca.double()).detach()[gradient_mask], reduction="mean")
+            dm_loss = 0.5 * F.mse_loss(original_latent.double(
+            )[gradient_mask], (original_latent.double() + grad_dm.double()).detach()[gradient_mask], reduction="mean")
         else:
-            dmd_loss = 0.5 * F.mse_loss(original_latent.double(
-            ), (original_latent.double() - grad.double()).detach(), reduction="mean")
+            ca_loss = 0.5 * F.mse_loss(original_latent.double(
+            ), (original_latent.double() + grad_ca.double()).detach(), reduction="mean")
+            dm_loss = 0.5 * F.mse_loss(original_latent.double(
+            ), (original_latent.double() + grad_dm.double()).detach(), reduction="mean")
+        dmd_loss = ca_loss+dm_loss
+
         return dmd_loss, dmd_log_dict
 
     def _initialize_inference_pipeline(self):
