@@ -100,3 +100,8 @@ class FlowMatchScheduler():
             (self.timesteps - timestep.to(self.timesteps.device)).abs())
         weights = self.linear_timesteps_weights[timestep_id]
         return weights
+
+if __name__ == "__main__":
+    scheduler = FlowMatchScheduler(num_inference_steps=50, shift=8.0, sigma_min=0.0, extra_one_step=True)
+    timesteps = scheduler.timesteps
+    breakpoint()

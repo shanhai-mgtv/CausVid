@@ -23,12 +23,12 @@ class Wan22TextEncoder(TextEncoderInterface):
             device=torch.device('cpu')
         ).eval().requires_grad_(False)
         self.text_encoder.load_state_dict(
-            torch.load("/mnt/cfs/shanhai/jyutong/train2/DiffSynth-Studio/models/Wan-AI/Wan2.2-TI2V-5B/models_t5_umt5-xxl-enc-bf16.pth",
+            torch.load("/mnt/shanhai-ai/wsy/models/Wan2.2-TI2V-5B/models_t5_umt5-xxl-enc-bf16.pth",
                        map_location='cpu', weights_only=False)
         )
 
         self.tokenizer = HuggingfaceTokenizer(
-            name="/mnt/cfs/shanhai/jyutong/train2/DiffSynth-Studio/models/Wan-AI/Wan2.2-TI2V-5B/google/umt5-xxl/", seq_len=512, clean='whitespace')
+            name="/mnt/shanhai-ai/wsy/models/Wan2.2-TI2V-5B/google/umt5-xxl/", seq_len=512, clean='whitespace')
 
     @property
     def device(self):
@@ -68,7 +68,7 @@ class Wan22VAEWrapper(VAEInterface):
 
         # init model
         self.model = _video_vae(
-            pretrained_path="/mnt/cfs/shanhai/jyutong/train2/DiffSynth-Studio/models/Wan-AI/Wan2.2-TI2V-5B/Wan2.2_VAE.pth",
+            pretrained_path="/mnt/shanhai-ai/wsy/models/Wan2.2-TI2V-5B/Wan2.2_VAE.pth",
             z_dim=48,
             temperal_downsample=[False, True, True]
         ).eval().requires_grad_(False)
@@ -97,7 +97,7 @@ class Wan22DiffusionWrapper(DiffusionModelInterface):
     def __init__(self):
         super().__init__()
 
-        self.model = WanModel.from_pretrained("/mnt/cfs/shanhai/jyutong/train2/DiffSynth-Studio/models/Wan-AI/Wan2.2-TI2V-5B/")
+        self.model = WanModel.from_pretrained("/mnt/shanhai-ai/wsy/models/Wan2.2-TI2V-5B/")
         self.model.eval()
 
         self.uniform_timestep = True
@@ -107,8 +107,8 @@ class Wan22DiffusionWrapper(DiffusionModelInterface):
         )
         self.scheduler.set_timesteps(1000, training=True)
 
-        # self.seq_len = 32760  # [1, 21, 16, 60, 104]
-        self.seq_len = 20*28*52//4
+        # self.seq_len = 32760  # [1, 31, 48, 44, 80]
+        self.seq_len = 31*44*80//4
         super().post_init()
 
     def enable_gradient_checkpointing(self) -> None:
@@ -208,12 +208,10 @@ class Wan22DiffusionWrapper(DiffusionModelInterface):
             return pred_x0
 
 
-# class CausalWanDiffusionWrapper(WanDiffusionWrapper):
+# class CausalWanDiffusionWrapper(Wan22DiffusionWrapper):
 #     def __init__(self):
 #         super().__init__()
 
-#         self.model = CausalWanModel.from_pretrained(
-#             "wan_models/Wan2.1-T2V-1.3B/")
-#         self.model.eval()
+#         self.model = CausalWanModel.from_pretrained("/mnt/shanhai-ai/wsy/models/Wan2.2-TI2V-5B/")
 
 #         self.uniform_timestep = False

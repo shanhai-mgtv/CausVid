@@ -17,7 +17,7 @@ class BidirectionalInferenceWrapper(InferencePipelineInterface):
         self.generator = generator
         self.denoising_step_list = denoising_step_list
 
-    def inference_with_trajectory(self, noise: torch.Tensor, conditional_dict: dict) -> torch.Tensor:
+    def inference_with_trajectory(self, noise: torch.Tensor, conditional_dict: dict, use_init_noise: bool = True) -> torch.Tensor:
         output_list = [noise]
 
         # initial point
@@ -35,12 +35,18 @@ class BidirectionalInferenceWrapper(InferencePipelineInterface):
             # TODO: Change backward simulation for causal video
             next_timestep = self.denoising_step_list[index + 1] * torch.ones(
                 noise.shape[:2], dtype=torch.long, device=noise.device)
-            noisy_image_or_video = self.scheduler.add_noise(
-                pred_image_or_video.flatten(0, 1),
-                # torch.randn_like(pred_image_or_video.flatten(0, 1)),
-                noise.flatten(0, 1),
-                next_timestep.flatten(0, 1)
-            ).unflatten(0, noise.shape[:2])
+            if use_init_noise:
+                noisy_image_or_video = self.scheduler.add_noise(
+                    pred_image_or_video.flatten(0, 1),
+                    noise.flatten(0, 1),
+                    next_timestep.flatten(0, 1)
+                ).unflatten(0, noise.shape[:2])
+            else:
+                noisy_image_or_video = self.scheduler.add_noise(
+                    pred_image_or_video.flatten(0, 1),
+                    torch.randn_like(pred_image_or_video.flatten(0, 1)),
+                    next_timestep.flatten(0, 1)
+                ).unflatten(0, noise.shape[:2])
             output_list.append(noisy_image_or_video)
 
         # [B, T, F, C, H, W]
