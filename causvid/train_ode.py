@@ -1,4 +1,4 @@
-from causvid.data import ODERegressionDataset, ODERegressionLMDBDataset
+from causvid.data import ODERegressionDataset, ODERegressionLMDBDataset, ODERegressionFileDataset
 from causvid.ode_regression import ODERegression
 from causvid.models import get_block_class
 from collections import defaultdict
@@ -78,7 +78,7 @@ class Trainer:
 
         # Step 3: Initialize the dataloader
         # dataset = ODERegressionDataset(config.data_path)
-        dataset = ODERegressionLMDBDataset(
+        dataset = ODERegressionFileDataset(
             config.data_path, max_pair=getattr(config, "max_pair", int(1e8)))
         sampler = torch.utils.data.distributed.DistributedSampler(
             dataset, shuffle=True, drop_last=True)

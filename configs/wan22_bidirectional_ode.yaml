@@ -1,0 +1,30 @@
+model_name: wan22
+generator_grad:
+  model: true
+denoising_step_list:
+- 1000
+- 757
+- 522
+- 250
+- 0
+generator_task: bidirectional_video
+generator_fsdp_wrap_strategy: size
+text_encoder_fsdp_wrap_strategy: size
+mixed_precision: true
+seed: 0
+wandb_host: WANDB_HOST
+wandb_key: WANDB_KEY
+wandb_project: causvid
+wandb_name: wan22_bidirectional_ode
+sharding_strategy: hybrid_full
+lr: 2.0e-06
+beta1: 0.9
+beta2: 0.999
+data_path: /mnt/shanhai-ai/shanhai-workspace/jyutong/hyc/CausVid/ode_data
+batch_size: 2
+log_iters: 500
+output_path: /mnt/shanhai-ai/shanhai-workspace/jyutong/hyc/CausVid/wan22_bidirectional_ode
+distillation_loss: ode
+gradient_checkpointing: true
+num_frame_per_block: 1
+warp_denoising_step: false

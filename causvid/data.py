@@ -3,6 +3,7 @@ from torch.utils.data import Dataset
 import numpy as np
 import torch
 import lmdb
+import os
 
 
 class TextDataset(Dataset):
@@ -36,6 +37,32 @@ class ODERegressionDataset(Dataset):
         return {
             "prompts": self.data_dict['prompts'][idx],
             "ode_latent": self.data_dict['latents'][idx].squeeze(0),
+        }
+
+class ODERegressionFileDataset(Dataset):
+    def __init__(self, data_dir, max_pair=int(1e8)):
+        self.datalist = os.listdir("/mnt/shanhai-ai/shanhai-workspace/jyutong/hyc/CausVid/ode_data")
+        self.datapath = [os.path.join(data_dir, basename) for basename in self.datalist]
+        self.length = min(len(self.datapath), max_pair)
+        self.datapath = self.datapath[:self.length]
+        self.max_pair = max_pair
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        """
+        Outputs:
+            - prompts: List of Strings
+            - latents: Tensor of shape (num_denoising_steps, num_frames, num_channels, height, width). It is ordered from pure noise to clean image.
+        """
+        data = torch.load(self.datapath[idx], weights_only=False)
+        for key, value in data.items():
+            prompts = key
+            latents = value
+        return {
+            "prompts": prompts,
+            "ode_latent": latents.squeeze(0),
         }
 
 
