@@ -1,6 +1,7 @@
 from .wan.wan_wrapper import WanTextEncoder, WanVAEWrapper, WanDiffusionWrapper, CausalWanDiffusionWrapper
-from .wan22.wan_wrapper import Wan22TextEncoder, Wan22VAEWrapper, Wan22DiffusionWrapper
+from .wan22.wan_wrapper import Wan22TextEncoder, Wan22VAEWrapper, Wan22DiffusionWrapper, CausalWan22DiffusionWrapper
 from causvid.bidirectional_trajectory_pipeline import BidirectionalInferenceWrapper
+from causvid.causal_trajectory_pipeline import CausalInferenceWrapper
 from .sdxl.sdxl_wrapper import SDXLWrapper, SDXLTextEncoder, SDXLVAE
 from transformers.models.t5.modeling_t5 import T5Block
 
@@ -9,7 +10,8 @@ DIFFUSION_NAME_TO_CLASS = {
     "sdxl": SDXLWrapper,
     "wan": WanDiffusionWrapper,
     "wan22": Wan22DiffusionWrapper,
-    "causal_wan": CausalWanDiffusionWrapper
+    "causal_wan": CausalWanDiffusionWrapper,
+    "causal_wan22": CausalWan22DiffusionWrapper
 }
 
 
@@ -21,7 +23,8 @@ TEXTENCODER_NAME_TO_CLASS = {
     "sdxl": SDXLTextEncoder,
     "wan": WanTextEncoder,
     "wan22": Wan22TextEncoder,
-    "causal_wan": WanTextEncoder
+    "causal_wan": WanTextEncoder,
+    "causal_wan22": Wan22TextEncoder 
 }
 
 
@@ -33,7 +36,8 @@ VAE_NAME_TO_CLASS = {
     "sdxl": SDXLVAE,
     "wan": WanVAEWrapper,
     "wan22": Wan22VAEWrapper,
-    "causal_wan": WanVAEWrapper   # TODO: Change the VAE to the causal version
+    "causal_wan": WanVAEWrapper,  
+    "causal_wan22": Wan22VAEWrapper  
 }
 
 
@@ -45,6 +49,7 @@ PIPELINE_NAME_TO_CLASS = {
     "sdxl": BidirectionalInferenceWrapper,
     "wan": BidirectionalInferenceWrapper,
     "wan22": BidirectionalInferenceWrapper,
+    "causal_wan22": CausalInferenceWrapper   # TODO: Change to Causal Inference Wrapper
 }
 
 

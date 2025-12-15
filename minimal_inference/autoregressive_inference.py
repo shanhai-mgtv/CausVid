@@ -1,4 +1,4 @@
-from causvid.models.wan.causal_inference import InferencePipeline
+from causvid.models.wan22.causal_inference import InferencePipeline
 from diffusers.utils import export_to_video
 from causvid.data import TextDataset
 from omegaconf import OmegaConf
@@ -32,7 +32,7 @@ pipeline.generator.load_state_dict(
 dataset = TextDataset(args.prompt_file_path)
 
 sampled_noise = torch.randn(
-    [1, 21, 16, 60, 104], device="cuda", dtype=torch.bfloat16
+    [1, 30, 48, 44, 80], device="cuda", dtype=torch.bfloat16
 )
 
 os.makedirs(args.output_folder, exist_ok=True)

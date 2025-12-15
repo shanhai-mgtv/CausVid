@@ -40,7 +40,6 @@ class DMD(nn.Module):
         self.generator.set_module_grad(
             module_grad=args.generator_grad
         )
-
         if getattr(args, "generator_ckpt", False):
             print(f"Loading pretrained generator from {args.generator_ckpt}")
             state_dict = torch.load(args.generator_ckpt, map_location="cpu")[
@@ -48,7 +47,6 @@ class DMD(nn.Module):
             self.generator.load_state_dict(
                 state_dict, strict=True
             )
-
         self.num_frame_per_block = getattr(args, "num_frame_per_block", 1)
 
         if self.num_frame_per_block > 1:
@@ -279,7 +277,6 @@ class DMD(nn.Module):
             num_frame_per_block=self.num_frame_per_block
         )
 
-    @torch.no_grad()
     def _consistency_backward_simulation(self, noise: torch.Tensor, conditional_dict: dict) -> torch.Tensor:
         """
         Simulate the generator's input from noise to avoid training/inference mismatch.
@@ -322,6 +319,11 @@ class DMD(nn.Module):
                                   device=self.device, dtype=self.dtype),
                 conditional_dict=conditional_dict
             )
+            if len(simulated_noisy_input.shape) == 5:
+                # if the output is [B, F, C, H, W], add a time dimension
+                gradient_mask = None
+                return simulated_noisy_input, gradient_mask
+
         else:
             simulated_noisy_input = []
             for timestep in self.denoising_step_list:
@@ -346,7 +348,7 @@ class DMD(nn.Module):
 
         # Step 2: Randomly sample a timestep and pick the corresponding input
         index = torch.randint(0, len(self.denoising_step_list), [
-                              image_or_video_shape[0], image_or_video_shape[1]], device=self.device, dtype=torch.long)
+                            image_or_video_shape[0], image_or_video_shape[1]], device=self.device, dtype=torch.long)
         index = self._process_timestep(index, type=self.generator_task_type)
 
         # select the corresponding timestep's noisy input from the stacked tensor [B, T, F, C, H, W]

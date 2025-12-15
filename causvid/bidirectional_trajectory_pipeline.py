@@ -11,12 +11,16 @@ import torch
 class BidirectionalInferenceWrapper(InferencePipelineInterface):
     def __init__(self, denoising_step_list: List[int],
                  scheduler: SchedulerInterface,
-                 generator: DiffusionModelInterface, **kwargs):
+                 generator: DiffusionModelInterface, 
+                 num_frame_per_block: int,
+                 **kwargs):
         super().__init__()
         self.scheduler = scheduler
         self.generator = generator
         self.denoising_step_list = denoising_step_list
+        self.num_frame_per_block = num_frame_per_block
 
+    @torch.no_grad()
     def inference_with_trajectory(self, noise: torch.Tensor, conditional_dict: dict, use_init_noise: bool = True) -> torch.Tensor:
         output_list = [noise]
 
@@ -53,6 +57,7 @@ class BidirectionalInferenceWrapper(InferencePipelineInterface):
         output = torch.stack(output_list, dim=1)
         return output
 
+    @torch.no_grad()
     def inference_with_trajectory_ode(self, noise: torch.Tensor, conditional_dict: dict) -> torch.Tensor:
         output_list = [noise]
 
